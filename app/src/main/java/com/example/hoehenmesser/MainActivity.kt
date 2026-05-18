@@ -1,5 +1,7 @@
 package com.example.hoehenmesser
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -18,11 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import com.example.hoehenmesser.ui.theme.Hoehenmesser
 import kotlin.math.pow
+import androidx.core.content.edit
 
 class MainActivity : ComponentActivity() {
 
@@ -31,6 +35,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val prefs = getPreferences(MODE_PRIVATE)
+        viewModel.referenzDruck = prefs.getFloat("referenz_druck", 1013.25f)
 
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager?
         val sensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PRESSURE)
@@ -75,6 +82,7 @@ class HoehenViewModel : ViewModel() {
 @Composable
 fun HoehenScreen(viewModel: HoehenViewModel, modifier: Modifier = Modifier) {
     var eingabe by remember { mutableStateOf("") }
+    val prefs = (LocalActivity.current as MainActivity).getPreferences(Context.MODE_PRIVATE)
 
     Column(
         modifier = modifier
@@ -140,12 +148,12 @@ fun HoehenScreen(viewModel: HoehenViewModel, modifier: Modifier = Modifier) {
                             imeAction = ImeAction.Done
                         ),
                         keyboardActions = KeyboardActions(
-                            onDone = { kalibrieren(eingabe, viewModel) }
+                            onDone = { kalibrieren(eingabe, viewModel, prefs) }
                         ),
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
-                    Button(onClick = { kalibrieren(eingabe, viewModel) }) {
+                    Button(onClick = { kalibrieren(eingabe, viewModel, prefs) }) {
                         Text("OK")
                     }
                 }
@@ -161,11 +169,12 @@ fun HoehenScreen(viewModel: HoehenViewModel, modifier: Modifier = Modifier) {
 }
 
 // berechnet p0 aus höhe und druck
-fun kalibrieren(eingabe: String, viewModel: HoehenViewModel) {
+fun kalibrieren(eingabe: String, viewModel: HoehenViewModel, prefs: SharedPreferences) {
     val tatsaechlieHoehe = eingabe.toDoubleOrNull() ?: return
     // umgestellt: p = p0 * (1 - 0,0065·h/288,15)^5,255 -> p0 = p / (1 - 0.0065 * h/ 288.15 )^5.255
     val p0 = viewModel.aktuellerDruck / (1.0 - 0.0065 * tatsaechlieHoehe / 288.15).pow(5.255)
     viewModel.referenzDruck = p0.toFloat()
+    prefs.edit { putFloat("referenz_druck", p0.toFloat()) }
 }
 
 @Preview(showBackground = true)
